@@ -40,6 +40,25 @@ label{display:block;font-size:12px;color:var(--mu);margin-top:8px}dialog input,d
 <dialog id="dg"><form id="fm" method="dialog"><h3 id="dt" style="margin:0"></h3><div id="ff"></div>
 <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button type="button" id="cn">Cancel</button><button class="pri" id="sv" type="submit">Save</button></div></form></dialog>
 <script>
+/* ===== Settings for the live (GitHub) version =====
+   1) Deploy Code.gs as a Google Apps Script web app (see README.md)
+   2) Paste its Web app URL and your secret key below */
+const CFG={SCRIPT_URL:'',KEY:''};
+(function(){
+ if(window.claude)return;
+ const L=[];let cache={c:{}},ver=0;
+ async function pull(first){try{const r=await fetch(CFG.SCRIPT_URL+'?key='+encodeURIComponent(CFG.KEY)+'&v='+ver),d=await r.json();if(d.error)throw new Error(d.error);if(d.same)return;ver=d.v;cache=d;if(!first)L.forEach(f=>f())}catch(x){if(first)throw x}}
+ const api=async b=>{const r=await fetch(CFG.SCRIPT_URL,{method:'POST',body:JSON.stringify({key:CFG.KEY,...b})}),d=await r.json();if(!d.ok)throw new Error(d.error||'save failed')};
+ const ready=CFG.SCRIPT_URL?pull(true):Promise.reject(new Error('not configured'));ready.catch(()=>{});
+ if(CFG.SCRIPT_URL){setInterval(()=>pull(false),15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)pull(false)})}
+ const db={collection:n=>({
+  onSnapshot(cb,err){ready.then(()=>{const f=()=>cb({docs:Object.entries((cache.c||{})[n]||{}).map(([id,d])=>({id,data:()=>d}))});f();L.push(f)}).catch(x=>err&&err(x))},
+  doc:id=>({set:d=>api({action:'set',col:n,id,data:d}).then(()=>{(cache.c[n]=cache.c[n]||{})[id]=d}),delete:()=>api({action:'del',col:n,id}).then(()=>{delete (cache.c[n]||{})[id]})})})};
+ const dl={save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}};
+ window.claude={use:async n=>n==='downloads'?dl:n==='db'?(CFG.SCRIPT_URL?await ready.then(()=>db,()=>null):null):null};
+})();
+</script>
+<script>
 const D={"o":[],"p":[],"b":[]};
 const K={o:['id','date','buyer','cat','item','style','rtype','ref','proc','rem','qty','smv','mc','hp','prod','grp','lines','days','lead','obm','obsheet'],p:['id','ob','sl','op','mc','mct','smv','rem'],b:['id','sheet','style','item','qty','note','img']};
 const $=s=>document.querySelector(s),e=v=>v==null?'':String(v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -240,6 +259,6 @@ $('#ex').onclick=async()=>{try{if(!window.XLSX)throw 0;const o=rows('o').map(r=>
  const buf=XLSX.write(wb,{type:'array',bookType:'xlsx'}),dl=await window.claude.use('downloads');if(!dl)throw 1;await dl.save({filename:'SMV_Operation_Master_export.xlsx',data:buf});msg('Export ready')}catch(x){msg('Export is not available in this view')}};
 function local(){db=null;for(const t of['o','p','b','s','f']){try{ov[t]=JSON.parse(localStorage.getItem('smvm_'+t)||'{}')}catch(x){ov[t]={}}}$('#st').textContent='Saved in this browser only';render();fopts();backfill();mig();['o','p','b','f'].forEach(purge)}
 (async()=>{fopts();render();let d=null;try{d=window.claude&&await window.claude.use('db')}catch(x){}
- if(!d)return local();db=d;$('#st').textContent='Saved to shared database';let n=0;
+ if(!d)return local();db=d;$('#st').textContent='Saved to Google Drive';let n=0;
  for(const t of['o','p','b','s','f'])db.collection(COL[t]).onSnapshot(s=>{ov[t]={};s.docs.forEach(x=>ov[t][x.id]=x.data());render();fopts();if(++n===5){backfill();mig()}if(t!=='s')purge(t)},()=>{$('#st').textContent='Database unavailable';})})();
 </script></body></html>

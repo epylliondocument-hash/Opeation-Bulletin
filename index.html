@@ -40,27 +40,42 @@ label{display:block;font-size:12px;color:var(--mu);margin-top:8px}dialog input,d
 <dialog id="dg"><form id="fm" method="dialog"><h3 id="dt" style="margin:0"></h3><div id="ff"></div>
 <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button type="button" id="cn">Cancel</button><button class="pri" id="sv" type="submit">Save</button></div></form></dialog>
 <script>
-/* ===== Settings for the live (GitHub) version =====
-   1) Deploy Code.gs as a Google Apps Script web app (see README.md)
-   2) Paste its Web app URL and your secret key below */
-const CFG={SCRIPT_URL:'https://google.com'};AKfycbzXlCSlWnEGHczXy6wDoAtS8XWfyZUo9MkzoNkfsFsqCRm6vNlSoGTXp2ba5JC5Wul74w
-
-
-CFG.SCRIPT_URL=CFG.SCRIPT_URL||localStorage.getItem('smvm_url')||'';
-
-if(!CFG.SCRIPT_URL)document.addEventListener('DOMContentLoaded',()=>{const d=document.createElement('div');d.style.cssText='background:#fff7e0;color:#5b4300;border:1px solid #e6c870;border-radius:10px;padding:10px 12px;margin-bottom:12px;font:13px system-ui,sans-serif;display:flex;gap:8px;flex-wrap:wrap;align-items:center';d.innerHTML='<b>Not connected to Google Drive yet.</b> Paste your Web app URL: <input id="gsu" style="flex:1;min-width:240px;padding:5px 8px" placeholder="https://script.google.com/macros/s/.../exec"> <button id="gsb" style="padding:5px 12px">Connect</button>';document.body.prepend(d);document.getElementById('gsb').onclick=()=>{const v=document.getElementById('gsu').value.trim();if(/^https:\/\/script\.google\.com\/.+\/exec$/.test(v)){localStorage.setItem('smvm_url',v);location.reload()}else alert('Please paste the full Web app URL that ends with /exec')}});
+/* Live (GitHub) version: all data is saved in ONE FILE on this PC (Chrome / Edge). Nothing is sent to any server. */
 (function(){
  if(window.claude)return;
- const L=[];let cache={c:{}},ver=0;
- async function pull(first){try{const r=await fetch(CFG.SCRIPT_URL+'?key='+encodeURIComponent(CFG.KEY)+'&v='+ver),d=await r.json();if(d.error)throw new Error(d.error);if(d.same)return;ver=d.v;cache=d;if(!first)L.forEach(f=>f())}catch(x){if(first)throw x}}
- const api=async b=>{const r=await fetch(CFG.SCRIPT_URL,{method:'POST',body:JSON.stringify({key:CFG.KEY,...b})}),d=await r.json();if(!d.ok)throw new Error(d.error||'save failed')};
- const ready=CFG.SCRIPT_URL?pull(true):Promise.reject(new Error('not configured'));ready.catch(()=>{});
- if(CFG.SCRIPT_URL){setInterval(()=>pull(false),15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)pull(false)})}
+ const SUP='showSaveFilePicker' in window;
+ let cache={v:0,c:{}},handle=null,pend=null,chain=Promise.resolve();
+ const idb=()=>new Promise((res,rej)=>{const r=indexedDB.open('smvm_files',1);r.onupgradeneeded=()=>r.result.createObjectStore('h');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+ const idbGet=async()=>{try{const d=await idb();return await new Promise(res=>{const q=d.transaction('h').objectStore('h').get('file');q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)})}catch(x){return null}};
+ const idbSet=async h=>{try{const d=await idb();d.transaction('h','readwrite').objectStore('h').put(h,'file')}catch(x){}};
+ async function readFile(){const t=await (await handle.getFile()).text();cache=t.trim()?JSON.parse(t):{v:0,c:{}};if(!cache||typeof cache!=='object')cache={};cache.c=cache.c||{};cache.v=cache.v||0}
+ async function writeFile(){const w=await handle.createWritable();await w.write(JSON.stringify(cache));await w.close()}
+ function flush(){if(pend)return pend;pend=new Promise((res,rej)=>{setTimeout(()=>{pend=null;chain=chain.then(writeFile).then(res,rej)},300)});return pend}
+ window.addEventListener('beforeunload',e=>{if(pend){e.preventDefault();e.returnValue=''}});
  const db={collection:n=>({
-  onSnapshot(cb,err){ready.then(()=>{const f=()=>cb({docs:Object.entries((cache.c||{})[n]||{}).map(([id,d])=>({id,data:()=>d}))});f();L.push(f)}).catch(x=>err&&err(x))},
-  doc:id=>({set:d=>api({action:'set',col:n,id,data:d}).then(()=>{(cache.c[n]=cache.c[n]||{})[id]=d}),delete:()=>api({action:'del',col:n,id}).then(()=>{delete (cache.c[n]||{})[id]})})})};
+  onSnapshot(cb){setTimeout(()=>cb({docs:Object.entries(cache.c[n]||{}).map(([id,d])=>({id,data:()=>d}))}),0)},
+  doc:id=>({set:async d=>{(cache.c[n]=cache.c[n]||{})[id]=d;cache.v++;await flush()},delete:async()=>{delete (cache.c[n]||{})[id];cache.v++;await flush()}})})};
  const dl={save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}};
- window.claude={use:async n=>n==='downloads'?dl:n==='db'?(CFG.SCRIPT_URL?await ready.then(()=>db,()=>null):null):null};
+ async function connect(){
+  const saved=SUP?await idbGet():null;
+  if(saved){try{if(await saved.queryPermission({mode:'readwrite'})==='granted'){handle=saved;await readFile();return db}}catch(x){}}
+  return new Promise(res=>{
+   const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,15,25,.75);display:flex;align-items:center;justify-content:center;padding:16px;font:14px system-ui,sans-serif';
+   o.innerHTML='<div style="background:#fff;color:#1b2430;border-radius:14px;max-width:470px;width:100%;padding:20px;box-shadow:0 10px 40px #0006"><h2 style="margin:0 0 8px;font-size:18px">Where should your data be saved?</h2><p id="m" style="margin:0 0 14px;color:#4b5563">Your data is kept in one file on this PC. Nothing is sent to any server.</p><div id="b" style="display:flex;flex-direction:column;gap:8px"></div></div>';
+   document.body.appendChild(o);
+   const m=o.querySelector('#m'),b=o.querySelector('#b'),done=r=>{o.remove();res(r)};
+   const btn=(t,f,pri)=>{const x=document.createElement('button');x.textContent=t;x.style.cssText='padding:10px 14px;border-radius:9px;border:1px solid #cbd5e1;font:inherit;cursor:pointer;background:'+(pri?'#0f766e':'#fff')+';color:'+(pri?'#fff':'#1b2430');x.onclick=async()=>{try{await f()}catch(e){if(!e||e.name!=='AbortError')m.textContent='Could not use that file: '+((e&&e.message)||e)}};b.appendChild(x)};
+   const use=async h=>{handle=h;await readFile();await idbSet(h);done(db)};
+   const perm=async h=>{if(await h.requestPermission({mode:'readwrite'})!=='granted')throw new Error('Permission was not given')};
+   const T={types:[{description:'Data file',accept:{'application/json':['.json']}}]};
+   if(!SUP){m.textContent='This browser cannot save to a file on your PC. Please use Chrome or Edge on your PC. You can continue now, but the data will stay only inside this browser.';btn('Continue in this browser only',async()=>done(null),1);return}
+   if(saved)btn('Reconnect to: '+saved.name,async()=>{await perm(saved);await use(saved)},1);
+   btn('Open an existing data file…',async()=>{const[h]=await showOpenFilePicker(T);await perm(h);await use(h)},!saved);
+   btn('Create a new data file…',async()=>{const h=await showSaveFilePicker({suggestedName:'smv_master_db.json',...T});await use(h)});
+   btn('Use this browser only (no file)',async()=>done(null));
+  });
+ }
+ window.claude={use:async n=>n==='downloads'?dl:n==='db'?await connect():null};
 })();
 </script>
 <script>
@@ -264,6 +279,6 @@ $('#ex').onclick=async()=>{try{if(!window.XLSX)throw 0;const o=rows('o').map(r=>
  const buf=XLSX.write(wb,{type:'array',bookType:'xlsx'}),dl=await window.claude.use('downloads');if(!dl)throw 1;await dl.save({filename:'SMV_Operation_Master_export.xlsx',data:buf});msg('Export ready')}catch(x){msg('Export is not available in this view')}};
 function local(){db=null;for(const t of['o','p','b','s','f']){try{ov[t]=JSON.parse(localStorage.getItem('smvm_'+t)||'{}')}catch(x){ov[t]={}}}$('#st').textContent='Saved in this browser only';render();fopts();backfill();mig();['o','p','b','f'].forEach(purge)}
 (async()=>{fopts();render();let d=null;try{d=window.claude&&await window.claude.use('db')}catch(x){}
- if(!d)return local();db=d;$('#st').textContent='Saved to Google Drive';let n=0;
+ if(!d)return local();db=d;$('#st').textContent='Saved to a file on this PC';let n=0;
  for(const t of['o','p','b','s','f'])db.collection(COL[t]).onSnapshot(s=>{ov[t]={};s.docs.forEach(x=>ov[t][x.id]=x.data());render();fopts();if(++n===5){backfill();mig()}if(t!=='s')purge(t)},()=>{$('#st').textContent='Database unavailable';})})();
 </script></body></html>

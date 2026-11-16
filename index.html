@@ -43,7 +43,7 @@ label{display:block;font-size:12px;color:var(--mu);margin-top:8px}dialog input,d
 /* Live (GitHub) version: all data is saved in ONE FILE on this PC (Chrome / Edge). Nothing is sent to any server. */
 (function(){
  if(window.claude)return;
- const SUP='showSaveFilePicker' in window;
+ const SUP=window.isSecureContext&&'showSaveFilePicker' in window&&'showOpenFilePicker' in window;
  let cache={v:0,c:{}},handle=null,pend=null,chain=Promise.resolve();
  const idb=()=>new Promise((res,rej)=>{const r=indexedDB.open('smvm_files',1);r.onupgradeneeded=()=>r.result.createObjectStore('h');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
  const idbGet=async()=>{try{const d=await idb();return await new Promise(res=>{const q=d.transaction('h').objectStore('h').get('file');q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)})}catch(x){return null}};
@@ -64,14 +64,16 @@ label{display:block;font-size:12px;color:var(--mu);margin-top:8px}dialog input,d
    o.innerHTML='<div style="background:#fff;color:#1b2430;border-radius:14px;max-width:470px;width:100%;padding:20px;box-shadow:0 10px 40px #0006"><h2 style="margin:0 0 8px;font-size:18px">Where should your data be saved?</h2><p id="m" style="margin:0 0 14px;color:#4b5563">Your data is kept in one file on this PC. Nothing is sent to any server.</p><div id="b" style="display:flex;flex-direction:column;gap:8px"></div></div>';
    document.body.appendChild(o);
    const m=o.querySelector('#m'),b=o.querySelector('#b'),done=r=>{o.remove();res(r)};
-   const btn=(t,f,pri)=>{const x=document.createElement('button');x.textContent=t;x.style.cssText='padding:10px 14px;border-radius:9px;border:1px solid #cbd5e1;font:inherit;cursor:pointer;background:'+(pri?'#0f766e':'#fff')+';color:'+(pri?'#fff':'#1b2430');x.onclick=async()=>{try{await f()}catch(e){if(!e||e.name!=='AbortError')m.textContent='Could not use that file: '+((e&&e.message)||e)}};b.appendChild(x)};
+   const btn=(t,f,pri)=>{const x=document.createElement('button');x.textContent=t;x.style.cssText='padding:10px 14px;border-radius:9px;border:1px solid #cbd5e1;font:inherit;cursor:pointer;background:'+(pri?'#0f766e':'#fff')+';color:'+(pri?'#fff':'#1b2430');x.onclick=async()=>{try{await f()}catch(e){if(!e||e.name!=='AbortError')m.textContent='Could not use that file ('+((e&&e.name)||'error')+'): '+((e&&e.message)||e)}};b.appendChild(x)};
    const use=async h=>{handle=h;await readFile();await idbSet(h);done(db)};
-   const perm=async h=>{if(await h.requestPermission({mode:'readwrite'})!=='granted')throw new Error('Permission was not given')};
+   const perm=async h=>{if(await h.queryPermission({mode:'readwrite'})==='granted')return true;try{if(await h.requestPermission({mode:'readwrite'})==='granted')return true}catch(e){}return false};
+   const allow=h=>{b.innerHTML='';m.textContent='One more click: allow this page to save changes into "'+h.name+'".';btn('Allow saving to '+h.name,async()=>{if(!(await perm(h)))throw new Error('Permission was not given. Click Allow or Edit in the browser message.');await use(h)},1)};
+   const go=async h=>{if(await perm(h))await use(h);else allow(h)};
    const T={types:[{description:'Data file',accept:{'application/json':['.json']}}]};
-   if(!SUP){m.textContent='This browser cannot save to a file on your PC. Please use Chrome or Edge on your PC. You can continue now, but the data will stay only inside this browser.';btn('Continue in this browser only',async()=>done(null),1);return}
-   if(saved)btn('Reconnect to: '+saved.name,async()=>{await perm(saved);await use(saved)},1);
-   btn('Open an existing data file…',async()=>{const[h]=await showOpenFilePicker(T);await perm(h);await use(h)},!saved);
-   btn('Create a new data file…',async()=>{const h=await showSaveFilePicker({suggestedName:'smv_master_db.json',...T});await use(h)});
+   if(!SUP){m.textContent=(window.isSecureContext?'This browser cannot save to a file on your PC. Please use Chrome or Edge on your PC.':'Open this page from its https address (your GitHub Pages link) so the browser allows saving to a file.')+' You can continue now, but the data will stay only inside this browser.';btn('Continue in this browser only',async()=>done(null),1);return}
+   if(saved)btn('Reconnect to: '+saved.name,async()=>go(saved),1);
+   btn('Open an existing data file…',async()=>{const[h]=await showOpenFilePicker({...T,mode:'readwrite'});await go(h)},!saved);
+   btn('Create a new data file…',async()=>{const h=await showSaveFilePicker({suggestedName:'smv_master_db.json',...T});await go(h)});
    btn('Use this browser only (no file)',async()=>done(null));
   });
  }

@@ -1,10 +1,15 @@
 // Google Apps Script – stores all data of "SMV & Operation Master" as one JSON file in YOUR Google Drive.
 // 1. Change KEY to your own secret text (use the same text in index.html).
 // 2. Deploy > New deployment > Web app > Execute as: Me, Who has access: Anyone.
-const KEY='CHANGE_THIS_SECRET';
+const KEY='a8475f54334803a7bdf4ac14';
 const FILE_NAME='smv_master_db.json';
 
-function file_(){const it=DriveApp.getFilesByName(FILE_NAME);return it.hasNext()?it.next():DriveApp.createFile(FILE_NAME,JSON.stringify({v:0,c:{}}),'application/json')}
+// Uses the newest copy of the file that is not in the Trash; creates an empty one if none exists.
+function file_(){
+  const it=DriveApp.getFilesByName(FILE_NAME);let best=null;
+  while(it.hasNext()){const f=it.next();if(f.isTrashed())continue;if(!best||f.getLastUpdated()>best.getLastUpdated())best=f}
+  return best||DriveApp.createFile(FILE_NAME,JSON.stringify({v:0,c:{}}),'application/json');
+}
 function load_(){return JSON.parse(file_().getBlob().getDataAsString())}
 function out_(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON)}
 

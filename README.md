@@ -13,7 +13,7 @@ The page talks to that file through a small Google Apps Script (Code.gs).
 5. Click **Deploy**, allow the permissions Google asks for, and copy the **Web app URL**.
 
 Your current data is already in Drive: the file `smv_master_db.json` in the folder
-"SMV & Operation Master – Backups". The script finds it by its name, so leave the name as it is.
+"SMV & Operation Master – Backups". The script finds it by its name (it uses the newest copy that is not in the Trash), so leave the name as it is.
 (If you start without that file, the script creates an empty one by itself.)
 
 ## 2. Put the page on GitHub

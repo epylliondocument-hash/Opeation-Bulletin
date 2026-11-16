@@ -44,8 +44,8 @@ label{display:block;font-size:12px;color:var(--mu);margin-top:8px}dialog input,d
    1) Deploy Code.gs as a Google Apps Script web app (see README.md)
    2) Paste its Web app URL and your secret key below */
 const CFG={SCRIPT_URL:"https://script.google.com/macros/s/AKfycbzXlCSlWnEGHczXy6wDoAtS8XWfyZUo9MkzoNkfsFsqCRm6vNlSoGTXp2ba5JC5Wul74w/exec
-',KEY:"AKfycbzXlCSlWnEGHczXy6wDoAtS8XWfyZUo9MkzoNkfsFsqCRm6vNlSoGTXp2ba5JC5Wul74w
-'};
+",KEY:"AKfycbzXlCSlWnEGHczXy6wDoAtS8XWfyZUo9MkzoNkfsFsqCRm6vNlSoGTXp2ba5JC5Wul74w
+"};
 CFG.SCRIPT_URL=CFG.SCRIPT_URL||localStorage.getItem('smvm_url')||'';
 
 if(!CFG.SCRIPT_URL)document.addEventListener('DOMContentLoaded',()=>{const d=document.createElement('div');d.style.cssText='background:#fff7e0;color:#5b4300;border:1px solid #e6c870;border-radius:10px;padding:10px 12px;margin-bottom:12px;font:13px system-ui,sans-serif;display:flex;gap:8px;flex-wrap:wrap;align-items:center';d.innerHTML='<b>Not connected to Google Drive yet.</b> Paste your Web app URL: <input id="gsu" style="flex:1;min-width:240px;padding:5px 8px" placeholder="https://script.google.com/macros/s/.../exec"> <button id="gsb" style="padding:5px 12px">Connect</button>';document.body.prepend(d);document.getElementById('gsb').onclick=()=>{const v=document.getElementById('gsu').value.trim();if(/^https:\/\/script\.google\.com\/.+\/exec$/.test(v)){localStorage.setItem('smvm_url',v);location.reload()}else alert('Please paste the full Web app URL that ends with /exec')}});

@@ -25,7 +25,7 @@ label{display:block;font-size:12px;color:var(--mu);margin-top:8px}dialog input,d
 .im{height:44px;border-radius:6px;cursor:zoom-in;border:1px solid var(--bd);vertical-align:middle}#owb input{width:100%;min-width:60px;padding:3px 6px}#owb td:nth-child(2) input{min-width:260px}#sg{margin-top:8px;border:1px solid var(--bd);border-radius:8px;max-height:200px;overflow:auto}#sg:empty{display:none}#sg div{padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--bd)}#sg div:hover{background:var(--hd)}.fi{padding:5px 8px;cursor:pointer;border-bottom:1px solid var(--bd)}.fi:hover{background:var(--hd)}.grid{display:none;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.cd{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:4px}.ph{height:160px;display:flex;align-items:center;justify-content:center;background:var(--hd);border-radius:8px;overflow:hidden}.ph img{max-width:100%;max-height:100%;cursor:zoom-in}.ac{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.bg{background:var(--ac);color:#fff;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600}.chip{background:var(--hd);border:1px solid var(--bd);border-radius:99px;padding:2px 10px;font-size:12px}
 </style></head><body>
 <header><div><h1>SMV & Operation Master</h1><div class="sub">Orders · OB sheets (with style image) · Operations · add data one by one, saved automatically</div></div>
-<div class="bar" style="margin:0"><span class="pill" id="st">Connecting…</span><button class="pri" id="sv2">Backup</button><span class="sub" id="lb"></span><button class="pri" id="ex">Export Excel</button><button id="cp2">Delete password</button></div></header>
+<div class="bar" style="margin:0"><span class="pill" id="st">Connecting…</span><button class="pri" id="sv2">Backup</button><span class="sub" id="lb"></span><button id="ab">Auto-backup: off</button><button class="pri" id="ex">Export Excel</button><button id="cp2">Delete password</button></div></header>
 <div class="kpis" id="kp"></div>
 <div class="tabs"><button data-t="o">Orders</button><button data-t="b">OB sheets</button><button data-t="p">Operations</button><button data-t="f">Features</button><button data-t="r">Recycle bin</button></div>
 <div class="bar"><input type="search" id="q" placeholder="Search…"><select id="fs"></select><span id="ob"></span><span id="vt" style="display:none"><button class="sm" data-v="r">☰ Rows</button> <button class="sm" data-v="i">▦ Icons</button></span><button class="pri" id="add">+ Add</button><button class="pri" id="xs" style="display:none"></button><button id="dsl" style="display:none;border-color:#dc2626;color:#dc2626"></button><button id="ut" style="display:none">Upload format</button><button class="pri" id="ub" style="display:none">Upload Excel</button><input type="file" id="uf" accept=".xlsx,.xls,.csv" hidden><button class="pri" id="uo" style="display:none">Upload OB (CSV / Excel)</button><input type="file" id="uof" accept=".csv,.xlsx,.xls" hidden><span class="sub" id="ms"></span></div>
@@ -47,8 +47,8 @@ label{display:block;font-size:12px;color:var(--mu);margin-top:8px}dialog input,d
  const SUP=window.isSecureContext&&'showSaveFilePicker' in window&&'showOpenFilePicker' in window;
  let cache={v:0,c:{}},handle=null,pend=null,chain=Promise.resolve();
  const idb=()=>new Promise((res,rej)=>{const r=indexedDB.open('smvm_files',1);r.onupgradeneeded=()=>r.result.createObjectStore('h');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
- const idbGet=async()=>{try{const d=await idb();return await new Promise(res=>{const q=d.transaction('h').objectStore('h').get('file');q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)})}catch(x){return null}};
- const idbSet=async h=>{try{const d=await idb();d.transaction('h','readwrite').objectStore('h').put(h,'file')}catch(x){}};
+ const idbGet=async(k='file')=>{try{const d=await idb();return await new Promise(res=>{const q=d.transaction('h').objectStore('h').get(k);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)})}catch(x){return null}};
+ const idbSet=async(h,k='file')=>{try{const d=await idb();d.transaction('h','readwrite').objectStore('h').put(h,k)}catch(x){}};
  async function readFile(){const t=await (await handle.getFile()).text();cache=t.trim()?JSON.parse(t):{v:0,c:{}};if(!cache||typeof cache!=='object')cache={};cache.c=cache.c||{};cache.v=cache.v||0}
  async function writeFile(){const w=await handle.createWritable();await w.write(JSON.stringify(cache));await w.close()}
  function flush(){if(pend)return pend;pend=new Promise((res,rej)=>{setTimeout(()=>{pend=null;chain=chain.then(writeFile).then(res,rej)},300)});return pend}
@@ -88,7 +88,11 @@ label{display:block;font-size:12px;color:var(--mu);margin-top:8px}dialog input,d
   if(SUP){const h=await showSaveFilePicker({suggestedName:'smv_master_db.json',types:[{description:'Data file',accept:{'application/json':['.json']}}]});handle=h;await idbSet(h);cache={v:snap.v||1,c:snap.c};await writeFile();return{db,msg:'Saved to '+h.name+'. From now on every change is saved to this file automatically.'}}
   await dl.save({filename:'smv_master_db.json',data:JSON.stringify({v:snap.v||1,c:snap.c})});return{msg:'smv_master_db.json downloaded. Replace your old file with it.'}
  }
- window.claude={use:async n=>n==='downloads'?dl:n==='db'?await connect():null,saveAll};
+ async function saveFile(name,text){
+  if(SUP){const h=await showSaveFilePicker({id:'smvbackup',startIn:'documents',suggestedName:name,types:[{description:'Backup file',accept:{'application/json':['.json']}}]});const w=await h.createWritable();await w.write(text);await w.close();return h.name}
+  await dl.save({filename:name,data:text});return name
+ }
+ window.claude={use:async n=>n==='downloads'?dl:n==='db'?await connect():null,saveAll,saveFile,getDir:()=>idbGet('dir'),setDir:h=>idbSet(h,'dir')};
 })();
 </script>
 <script>
@@ -96,7 +100,7 @@ const D={"o":[],"p":[],"b":[]};
 const K={o:['id','date','buyer','cat','item','style','rtype','ref','proc','rem','qty','smv','mc','hp','prod','grp','lines','days','lead','obm','obsheet'],p:['id','ob','sl','op','mc','mct','smv','rem'],b:['id','sheet','style','item','qty','note','img']};
 const $=s=>document.querySelector(s),e=v=>v==null?'':String(v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const base={};for(const t in K)base[t]=D[t].map(r=>Object.fromEntries(K[t].map((k,i)=>[k,r[i]])));
-const ov={o:{},p:{},b:{},s:{},f:{}},COL={o:'orders',p:'ops',b:'obs',s:'settings',f:'features'},obm=()=>Object.fromEntries(rows('b').map(b=>[b.id,b]));let curImg=null,dirty=0;const sel=new Set(),sels={b:new Set(),p:new Set(),f:new Set()},cs=()=>tab==='o'?sel:(sels[tab]||new Set());
+const ov={o:{},p:{},b:{},s:{},f:{}},COL={o:'orders',p:'ops',b:'obs',s:'settings',f:'features'},obm=()=>Object.fromEntries(rows('b').map(b=>[b.id,b]));let curImg=null,dirty=0,adh=null,abPend=null,adn='',adt=null;const sel=new Set(),sels={b:new Set(),p:new Set(),f:new Set()},cs=()=>tab==='o'?sel:(sels[tab]||new Set());
 const F={n0:v=>v==null?'':Math.round(v).toLocaleString('en-US'),f1:v=>v==null?'':v.toFixed(1),f2:v=>v==null?'':v.toFixed(2),f4:v=>v==null?'':v.toFixed(4),pc:v=>v==null?'':(v*100).toFixed(1)+'%'};
 let vw='r',tab='o',q='',fsel='',obf=null,page=0,sk=null,sd=1,db=null;const PS=100;
 const rt=r=>{if(!r)return'(none)';const l=r.toLowerCase();return/^(sample|test sample)/.test(l)?'Sample':/^(repeat|repart)/.test(l)?'Repeat':l.includes('bulk job ref')?'Bulk Job Ref':/^(sketch|picture)/.test(l)?'Sketch / Picture':/^(tesk|tesw|job-|op-)/.test(l)?'Job Reference (TESK)':l.startsWith('new')?'New':'Other'};
@@ -133,7 +137,7 @@ function render(){const c=CFG[tab],all=view(),pages=Math.max(1,Math.ceil(all.len
  $('#ob').innerHTML=obf&&tab==='p'?`<span class="chip">${e((obm()[obf]||{}).sheet)} <a href="#" id="xf">clear</a></span>`:''}
 function fopts(){const c=CFG[tab],rs=tab==='p'?libRows():rows(tab),v=[...new Set(rs.map(x=>x[c.f]).filter(Boolean))].sort();$('#fs').innerHTML=`<option value="">${c.l}</option>`+v.map(x=>`<option>${e(x)}</option>`).join('');$('#fs').value=fsel}
 function msg(t){$('#ms').textContent=t;clearTimeout(msg.t);msg.t=setTimeout(()=>$('#ms').textContent='',5000)}
-async function put(t,id,data){ov[t][id]=data;dirty=1;if(!bulk)render();try{if(db)await db.collection(COL[t]).doc(id).set(data);else localStorage.setItem('smvm_'+t,JSON.stringify(ov[t]));msg('Saved')}catch(x){msg('Could not save: '+(x.message||x.code||'view-only'))}}
+async function put(t,id,data){ov[t][id]=data;dirty=1;schedAuto();if(!bulk)render();try{if(db)await db.collection(COL[t]).doc(id).set(data);else localStorage.setItem('smvm_'+t,JSON.stringify(ov[t]));msg('Saved')}catch(x){msg('Could not save: '+(x.message||x.code||'view-only'))}}
 async function del(t,id){if(t==='p'){const r=rows('p').find(x=>x.id===id);if(r&&!r.ob){const k=okey(r.op,r.mc,r.smv,r.size);rows('p').filter(x=>!x.ob&&x.id!==id&&okey(x.op,x.mc,x.smv,x.size)===k).forEach(x=>put('p',x.id,{...(ov.p[x.id]||{}),_del:true,_at:Date.now()}))}}await put(t,id,{...(ov[t][id]||{}),_del:true,_at:Date.now()});msg('Moved to the Recycle bin – kept for 90 days')}
 function form(id){const t=tab,cur=id?rows(t).find(r=>r.id===id):{ob:t==='p'?obf||'':'',cat:'Knit',mc:34,hp:6,lead:14,date:new Date().toISOString().slice(0,10)};
  $('#dt').textContent=(id?'Edit ':'Add ')+({o:'order',p:'operation',b:'OB sheet'})[t];curImg=t==='b'?cur.img||null:null;
@@ -245,7 +249,7 @@ function guard(force){return new Promise(res=>{const cur=(ov.s.del||{}).h,d=$('#
  $('#pc').onclick=()=>{d.close();res(false)};d.oncancel=()=>res(false);d.showModal();$('#p1').focus()})}
 $('#cp2').onclick=async()=>{if(!(ov.s.del||{}).h||await guard())await guard(1)};
 function binRows(){const out=[],now=Date.now(),tn={o:'Order',p:'Operation',b:'OB sheet',f:'Feature'};for(const t of['o','p','b','f'])for(const id in ov[t]){const d=ov[t][id];if(!d||!d._del)continue;out.push({id,t,type:tn[t],name:t==='o'?[d.buyer,d.style].filter(Boolean).join(' · '):t==='p'?d.op:t==='f'?d.name:[d.sheet,d.style].filter(Boolean).join(' · '),when:d._at?new Date(d._at).toISOString().slice(0,10):'',at:d._at||0,left:d._at?Math.max(0,Math.ceil(90-(now-d._at)/864e5)):null})}return out.sort((a,b)=>b.at-a.at)}
-async function hard(t,id){delete ov[t][id];dirty=1;try{if(db)await db.collection(COL[t]).doc(id).delete();else localStorage.setItem('smvm_'+t,JSON.stringify(ov[t]))}catch(x){}}
+async function hard(t,id){delete ov[t][id];dirty=1;schedAuto();try{if(db)await db.collection(COL[t]).doc(id).delete();else localStorage.setItem('smvm_'+t,JSON.stringify(ov[t]))}catch(x){}}
 function purge(t){const lim=Date.now()-90*864e5;for(const id in ov[t]){const d=ov[t][id];if(d&&d._del&&d._at&&d._at<lim)hard(t,id)}}
 function libRows(){const seen=new Set(),U={},m=obm(),all=rows('p'),K=x=>okey(x.op,x.mc,x.smv,x.size);all.forEach(x=>{if(x.ob&&m[x.ob])U[K(x)]=(U[K(x)]||0)+1});return all.filter(x=>!x.ob).filter(x=>{const k=K(x);if(seen.has(k))return false;seen.add(k);return true}).map(x=>({...x,used:U[K(x)]||0}))}
 function ensureLib(d){const k=okey(d.op,d.mc,d.smv,d.size);if(rows('p').some(x=>!x.ob&&okey(x.op,x.mc,x.smv,x.size)===k))return;put('p',nid(),{code:ocode(),ob:null,sl:null,op:d.op,mc:d.mc,mct:d.mct,smv:d.smv,item:d.item||null,size:d.size||null,rem:d.rem||null,_new:true})}
@@ -320,9 +324,26 @@ $('#udv').onclick=async()=>{const sheet=$('#udb').value.trim(),item=$('#udt').va
  ps.push(put('b',id,{sheet,style,item,size,note:'Uploaded from '+UP.name,_new:true}));
  UP.ops.forEach(o=>{ps.push(put('p',nid(),{ob:id,sl:o.sl,op:o.op,mc:o.mc,mct:o.mct,smv:o.base,freq:o.freq,feat:o.feat,_new:true}));const k=okey(o.op,o.mc,o.base,size);if(!have.has(k)){have.add(k);nl++;ps.push(put('p',nid(),{code:'OP-'+String(n++).padStart(4,'0'),ob:null,sl:null,op:o.op,mc:o.mc,mct:o.mct,smv:o.base,item,size,_new:true}))}});
  bulk=0;$('#ud').close();tab='b';fopts();render();await Promise.all(ps);msg('OB sheet created with '+UP.ops.length+' operations \u00b7 '+nl+' new in the operation database')};
-$('#sv2').onclick=async()=>{try{const d=new Date(),ds=d.toISOString().slice(0,10),snap={app:'smv-master',exported:d.toISOString(),v:Date.now(),c:{orders:ov.o,ops:ov.p,obs:ov.b,settings:ov.s,features:ov.f}},dl=await window.claude.use('downloads');
- await dl.save({filename:'smv_backup_'+ds+'.json',data:JSON.stringify(snap)});dirty=0;try{localStorage.setItem('smvm_last',d.toISOString())}catch(x){}render();msg('Backup saved as smv_backup_'+ds+'.json \u2013 keep it safe and load it next time')}catch(x){msg('Could not create the backup: '+((x&&x.message)||x))}};
+$('#sv2').onclick=async()=>{try{const d=new Date(),ds=new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10),snap={app:'smv-master',exported:d.toISOString(),v:Date.now(),c:{orders:ov.o,ops:ov.p,obs:ov.b,settings:ov.s,features:ov.f}},txt=JSON.stringify(snap),nmf='smv_backup_'+ds+'.json';
+ const sf=window.claude.saveFile||((n,t)=>window.claude.use('downloads').then(x=>x.save({filename:n,data:t})).then(()=>n)),nm=await sf(nmf,txt);dirty=0;try{localStorage.setItem('smvm_last',d.toISOString())}catch(x){}render();msg('Backup saved: '+nm+' \u2013 keep it safe and load it next time')}catch(x){msg(x&&x.name==='AbortError'?'Backup cancelled \u2013 nothing was saved':'Could not create the backup: '+((x&&x.message)||x))}};
 window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
+function schedAuto(){if(!adh)return;clearTimeout(adt);adt=setTimeout(()=>runAuto(),20000)}
+function abLabel(){const b=$('#ab');b.textContent=adh?'Auto-backup: ON \u00b7 '+adn:abPend?'Auto-backup: click to resume \u00b7 '+adn:'Auto-backup: off';b.style.background=adh?'#0f766e':abPend?'#d97706':'';b.style.color=adh||abPend?'#fff':''}
+const bcnt=o=>Object.entries((o&&o.c)||{}).reduce((s,[k,v])=>s+(k==='settings'?0:Object.keys(v||{}).length),0);
+async function runAuto(force){if(!adh||(!dirty&&!force))return;try{
+ if(await adh.queryPermission({mode:'readwrite'})!=='granted'){abPend=adh;adh=null;abLabel();return}
+ const d=new Date(),ds=new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10),snap={app:'smv-master',exported:d.toISOString(),v:Date.now(),c:{orders:ov.o,ops:ov.p,obs:ov.b,settings:ov.s,features:ov.f}},txt=JSON.stringify(snap);let nm='smv_backup_'+ds+'.json';
+ try{const old=JSON.parse(await (await (await adh.getFileHandle(nm)).getFile()).text());if(bcnt(old)>bcnt(snap))nm='smv_backup_'+ds+'_'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')+'.json'}catch(e){}
+ dirty=0;const f=await adh.getFileHandle(nm,{create:true}),w=await f.createWritable();await w.write(txt);await w.close();
+ try{localStorage.setItem('smvm_last',d.toISOString())}catch(x){}render();msg('Auto-backup saved: '+nm)}catch(x){dirty=1;msg('Auto-backup failed: '+((x&&x.message)||x))}}
+async function abInit(){if(!window.showDirectoryPicker){$('#ab').style.display='none';return}try{const g=window.claude&&window.claude.getDir?await window.claude.getDir():null;if(g){adn=g.name;if(await g.queryPermission({mode:'readwrite'})==='granted')adh=g;else abPend=g}}catch(x){}abLabel()}
+$('#ab').onclick=async()=>{try{
+ if(adh){const i=await ask('Auto-backup is <b>ON</b>: your data is saved into the folder <b>'+e(adn)+'</b> about 20 seconds after every change.',['Change folder','Turn off','Close']);if(i===1){adh=null;abPend=null;adn='';await window.claude.setDir(null);abLabel()}if(i!==0)return}
+ else if(abPend){if(await abPend.requestPermission({mode:'readwrite'})==='granted'){adh=abPend;abPend=null;abLabel();await runAuto(true);msg('Auto-backup resumed');return}}
+ const g=await showDirectoryPicker({id:'smvautobackup',mode:'readwrite',startIn:'documents'});adh=g;abPend=null;adn=g.name;await window.claude.setDir(g);abLabel();await runAuto(true);msg('Auto-backup is ON. Backups go into the folder \u201c'+adn+'\u201d about 20 seconds after each change.')}
+ catch(x){msg(x&&x.name==='AbortError'?'No folder chosen. Chrome does not allow the Documents, Downloads or Desktop folder itself: create a sub-folder (for example SMV Backups) and choose that.':'Auto-backup: '+((x&&x.message)||x))}};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&adh&&dirty){clearTimeout(adt);runAuto()}});
+abInit();
 $('#ex').onclick=async()=>{try{if(!window.XLSX)throw 0;const o=rows('o').map(r=>({ID:r.id,Date:r.date,Buyer:r.buyer,Category:r.cat,Item:r.item,Size:r.size,Style:r.style,'Ref Type':r.rtype,Reference:r.ref,'Process Description':r.proc,Remarks:r.rem,'Order Qty':r.qty,SMV:r.smv,'No. of MC':r.mc,Helper:r.hp,'Total MP':r.mp,'Productivity (Pcs)':r.prod,'Exp Effi':r.eff,'Line Group':r.grp,'Allocate Line':r.lines,'Days Run':r.days,'Sewing Lead Time':r.lead,'OB Match':r.obm,'OB Sheet':r.obsheet,'Workload (SAH)':r.sah}));
  const b=obrows().map(r=>({'OB ID':r.id,'Buyer Name':r.sheet,Style:r.style,Item:r.item,Size:r.size,'Order Qty':r.qty,Note:r.note,Operations:r.nops,'Total SMV':r.tot,'Manual SMV':r.man,'Machine SMV':r.mach,'Orders Linked':r.lnk}));
  const p=rows('p').map(r=>({Code:r.codeS,Item:r.item,ID:r.id,'OB ID':r.ob,'Buyer Name':r.sheet,SL:r.sl,Operation:r.op,'M/C':r.mc,Machine:r.mct,SMV:r.smv,'Target/hr':r.tgt,Remark:r.rem}));

@@ -25,7 +25,7 @@ label{display:block;font-size:12px;color:var(--mu);margin-top:8px}dialog input,d
 .im{height:44px;border-radius:6px;cursor:zoom-in;border:1px solid var(--bd);vertical-align:middle}#owb input{width:100%;min-width:60px;padding:3px 6px}#owb td:nth-child(2) input{min-width:260px}#sg{margin-top:8px;border:1px solid var(--bd);border-radius:8px;max-height:200px;overflow:auto}#sg:empty{display:none}#sg div{padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--bd)}#sg div:hover{background:var(--hd)}.fi{padding:5px 8px;cursor:pointer;border-bottom:1px solid var(--bd)}.fi:hover{background:var(--hd)}.grid{display:none;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.cd{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:4px}.ph{height:160px;display:flex;align-items:center;justify-content:center;background:var(--hd);border-radius:8px;overflow:hidden}.ph img{max-width:100%;max-height:100%;cursor:zoom-in}.ac{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.bg{background:var(--ac);color:#fff;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600}.chip{background:var(--hd);border:1px solid var(--bd);border-radius:99px;padding:2px 10px;font-size:12px}
 </style></head><body>
 <header><div><h1>SMV & Operation Master</h1><div class="sub">Orders · OB sheets (with style image) · Operations · add data one by one, saved automatically</div></div>
-<div class="bar" style="margin:0"><span class="pill" id="st">Connecting…</span><button class="pri" id="ex">Export Excel</button><button id="cp2">Delete password</button></div></header>
+<div class="bar" style="margin:0"><span class="pill" id="st">Connecting…</span><button class="pri" id="sv2">Save all data</button><button class="pri" id="ex">Export Excel</button><button id="cp2">Delete password</button></div></header>
 <div class="kpis" id="kp"></div>
 <div class="tabs"><button data-t="o">Orders</button><button data-t="b">OB sheets</button><button data-t="p">Operations</button><button data-t="f">Features</button><button data-t="r">Recycle bin</button></div>
 <div class="bar"><input type="search" id="q" placeholder="Search…"><select id="fs"></select><span id="ob"></span><span id="vt" style="display:none"><button class="sm" data-v="r">☰ Rows</button> <button class="sm" data-v="i">▦ Icons</button></span><button class="pri" id="add">+ Add</button><button class="pri" id="xs" style="display:none"></button><button id="dsl" style="display:none;border-color:#dc2626;color:#dc2626"></button><button id="ut" style="display:none">Upload format</button><button class="pri" id="ub" style="display:none">Upload Excel</button><input type="file" id="uf" accept=".xlsx,.xls,.csv" hidden><button class="pri" id="uo" style="display:none">Upload OB (CSV / Excel)</button><input type="file" id="uof" accept=".csv,.xlsx,.xls" hidden><span class="sub" id="ms"></span></div>
@@ -79,7 +79,12 @@ label{display:block;font-size:12px;color:var(--mu);margin-top:8px}dialog input,d
    imp();btn('Use this browser only (no file)',async()=>done(null));
   });
  }
- window.claude={use:async n=>n==='downloads'?dl:n==='db'?await connect():null};
+ async function saveAll(snap){
+  if(handle){await writeFile();return{msg:'All data saved to '+handle.name+' at '+new Date().toLocaleTimeString()}}
+  if(SUP){const h=await showSaveFilePicker({suggestedName:'smv_master_db.json',types:[{description:'Data file',accept:{'application/json':['.json']}}]});handle=h;await idbSet(h);cache={v:snap.v||1,c:snap.c};await writeFile();return{db,msg:'Saved to '+h.name+'. From now on every change is saved to this file automatically.'}}
+  await dl.save({filename:'smv_master_db.json',data:JSON.stringify({v:snap.v||1,c:snap.c})});return{msg:'smv_master_db.json downloaded. Replace your old file with it.'}
+ }
+ window.claude={use:async n=>n==='downloads'?dl:n==='db'?await connect():null,saveAll};
 })();
 </script>
 <script>
@@ -311,6 +316,8 @@ $('#udv').onclick=async()=>{const sheet=$('#udb').value.trim(),item=$('#udt').va
  ps.push(put('b',id,{sheet,style,item,size,note:'Uploaded from '+UP.name,_new:true}));
  UP.ops.forEach(o=>{ps.push(put('p',nid(),{ob:id,sl:o.sl,op:o.op,mc:o.mc,mct:o.mct,smv:o.base,freq:o.freq,feat:o.feat,_new:true}));const k=okey(o.op,o.mc,o.base,size);if(!have.has(k)){have.add(k);nl++;ps.push(put('p',nid(),{code:'OP-'+String(n++).padStart(4,'0'),ob:null,sl:null,op:o.op,mc:o.mc,mct:o.mct,smv:o.base,item,size,_new:true}))}});
  bulk=0;$('#ud').close();tab='b';fopts();render();await Promise.all(ps);msg('OB sheet created with '+UP.ops.length+' operations \u00b7 '+nl+' new in the operation database')};
+$('#sv2').onclick=async()=>{if(!window.claude||!window.claude.saveAll){msg('Your data is saved automatically');return}
+ try{const r=await window.claude.saveAll({v:Date.now(),c:{orders:ov.o,ops:ov.p,obs:ov.b,settings:ov.s,features:ov.f}});if(r.db){db=r.db;$('#st').textContent='Saved to a file on this PC'}msg(r.msg||'Saved')}catch(x){msg(x&&x.name==='AbortError'?'Save cancelled':'Could not save: '+((x&&x.message)||x))}};
 $('#ex').onclick=async()=>{try{if(!window.XLSX)throw 0;const o=rows('o').map(r=>({ID:r.id,Date:r.date,Buyer:r.buyer,Category:r.cat,Item:r.item,Size:r.size,Style:r.style,'Ref Type':r.rtype,Reference:r.ref,'Process Description':r.proc,Remarks:r.rem,'Order Qty':r.qty,SMV:r.smv,'No. of MC':r.mc,Helper:r.hp,'Total MP':r.mp,'Productivity (Pcs)':r.prod,'Exp Effi':r.eff,'Line Group':r.grp,'Allocate Line':r.lines,'Days Run':r.days,'Sewing Lead Time':r.lead,'OB Match':r.obm,'OB Sheet':r.obsheet,'Workload (SAH)':r.sah}));
  const b=obrows().map(r=>({'OB ID':r.id,'Buyer Name':r.sheet,Style:r.style,Item:r.item,Size:r.size,'Order Qty':r.qty,Note:r.note,Operations:r.nops,'Total SMV':r.tot,'Manual SMV':r.man,'Machine SMV':r.mach,'Orders Linked':r.lnk}));
  const p=rows('p').map(r=>({Code:r.codeS,Item:r.item,ID:r.id,'OB ID':r.ob,'Buyer Name':r.sheet,SL:r.sl,Operation:r.op,'M/C':r.mc,Machine:r.mct,SMV:r.smv,'Target/hr':r.tgt,Remark:r.rem}));

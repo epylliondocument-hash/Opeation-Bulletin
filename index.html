@@ -57,32 +57,23 @@ label{display:block;font-size:12px;color:var(--mu);margin-top:8px}dialog input,d
   onSnapshot(cb){setTimeout(()=>cb({docs:Object.entries(cache.c[n]||{}).map(([id,d])=>({id,data:()=>d}))}),0)},
   doc:id=>({set:async d=>{(cache.c[n]=cache.c[n]||{})[id]=d;cache.v++;await flush()},delete:async()=>{delete (cache.c[n]||{})[id];cache.v++;await flush()}})})};
  const dl={save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}};
- async function connect(){
-  const saved=SUP?await idbGet():null;
-  if(saved){try{if(await saved.queryPermission({mode:'readwrite'})==='granted'){handle=saved;await readFile();return db}}catch(x){}}
+ function connect(){
   return new Promise(res=>{
-   const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,15,25,.75);display:flex;align-items:center;justify-content:center;padding:16px;font:14px system-ui,sans-serif';
+   const K=['o','p','b','s','f'],o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,15,25,.75);display:flex;align-items:center;justify-content:center;padding:16px;font:14px system-ui,sans-serif';
    o.innerHTML='<div style="background:#fff;color:#1b2430;border-radius:14px;max-width:470px;width:100%;padding:20px;box-shadow:0 10px 40px #0006"><h2 style="margin:0 0 8px;font-size:18px">Continue your work</h2><p id="m" style="margin:0 0 14px;color:#4b5563">Load your latest backup file to continue exactly where you left off. Nothing is sent to any server.</p><div id="b" style="display:flex;flex-direction:column;gap:8px"></div></div>';
    document.body.appendChild(o);
    const m=o.querySelector('#m'),b=o.querySelector('#b'),done=r=>{o.remove();res(r)};
-   const btn=(t,f,pri)=>{const x=document.createElement('button');x.textContent=t;x.style.cssText='padding:10px 14px;border-radius:9px;border:1px solid #cbd5e1;font:inherit;cursor:pointer;background:'+(pri?'#0f766e':'#fff')+';color:'+(pri?'#fff':'#1b2430');x.onclick=async()=>{m.textContent='Working…';try{await f()}catch(e){m.textContent=(e&&e.name==='AbortError')?'No file was selected, or the browser message was cancelled. Click the button again, choose the file, then click "Edit file" when the browser asks. If it keeps failing, copy the file to Documents or Desktop and try again.':'Could not use that file ('+((e&&e.name)||'error')+'): '+((e&&e.message)||e)}};b.appendChild(x)};
-   const use=async h=>{handle=h;await readFile();await idbSet(h);done(db)};
-   const perm=async h=>{if(await h.queryPermission({mode:'readwrite'})==='granted')return true;try{const r=await Promise.race([h.requestPermission({mode:'readwrite'}),new Promise(z=>setTimeout(()=>z('timeout'),7000))]);if(r==='granted')return true}catch(e){}return false};
-   const allow=h=>{b.innerHTML='';m.textContent='One more click: allow this page to save changes into "'+h.name+'".';btn('Allow saving to '+h.name,async()=>{if(!(await perm(h)))throw new Error('Permission was not given. Click Allow or Edit in the browser message.');await use(h)},1)};
-   const go=async h=>{if(await perm(h))await use(h);else allow(h)};
-   const T={types:[{description:'Data file',accept:{'application/json':['.json']}}]};
-   const imp=()=>btn('Load my backup file…',()=>new Promise((ok,no)=>{const i=document.createElement('input');i.type='file';i.accept='.json,application/json';i.onchange=async()=>{try{const f=i.files[0];if(!f)return ok();const d=JSON.parse(await f.text()),M={orders:'o',ops:'p',obs:'b',settings:'s',features:'f'};for(const k in M)localStorage.setItem('smvm_'+M[k],JSON.stringify(((d.c||d.collections)||{})[k]||{}));done(null);ok()}catch(e){no(e)}};i.click()}),1);
-   if(!SUP){m.textContent=(window.isSecureContext?'This browser cannot save to a file on your PC. Please use Chrome or Edge on your PC.':'Open this page from its https address (your GitHub Pages link) so the browser allows saving to a file.')+' You can continue now, but the data will stay only inside this browser.';imp();btn('Continue in this browser only',async()=>done(null),1);return}
-   imp();const has=['o','p','b','f'].some(k=>{try{return Object.keys(JSON.parse(localStorage.getItem('smvm_'+k)||'{}')).length>0}catch(e){return false}});
-   if(has)btn('Continue with the data saved in this browser',async()=>done(null));
-   btn('Start with an empty workspace',async()=>done(null));
-   {const a=document.createElement('div');a.textContent='Advanced – auto-save into a file (Chrome / Edge on a PC):';a.style.cssText='margin:8px 0 0;color:#6b7280;font-size:12px';b.appendChild(a)}
-   if(saved)btn('Reconnect to: '+saved.name,async()=>go(saved));
-   btn('Open an existing data file…',async()=>{const[h]=await showOpenFilePicker({...T,mode:'readwrite'});await go(h)});
-   btn('Create a new data file…',async()=>{const h=await showSaveFilePicker({suggestedName:'smv_master_db.json',...T});await go(h)});
-   
+   const btn=(t,f,pri)=>{const x=document.createElement('button');x.textContent=t;x.style.cssText='padding:10px 14px;border-radius:9px;border:1px solid #cbd5e1;font:inherit;cursor:pointer;background:'+(pri?'#0f766e':'#fff')+';color:'+(pri?'#fff':'#1b2430');x.onclick=async()=>{m.textContent='Working\u2026';try{await f()}catch(e){m.textContent='Could not do that ('+((e&&e.name)||'error')+'): '+((e&&e.message)||e)}};b.appendChild(x);return x};
+   btn('Load my backup file\u2026',()=>new Promise((ok,no)=>{const i=document.createElement('input');i.type='file';i.accept='.json,application/json';
+    i.oncancel=()=>{m.textContent='No file chosen. Click the button again to choose your backup file.';ok()};
+    i.onchange=async()=>{try{const f=i.files[0];if(!f)return ok();const d=JSON.parse(await f.text()),c=d.c||d.collections;if(!c||typeof c!=='object')throw new Error('This file is not a backup of this app.');const M={orders:'o',ops:'p',obs:'b',settings:'s',features:'f'};for(const k in M)localStorage.setItem('smvm_'+M[k],JSON.stringify(c[k]||{}));done(null);ok()}catch(e){no(e)}};i.click()}),1);
+   let armed=false;
+   const eb=btn('Start with an empty workspace',async()=>{const has=K.some(k=>{try{return Object.keys(JSON.parse(localStorage.getItem('smvm_'+k)||'{}')).length>0}catch(e){return false}});
+    if(has&&!armed){armed=true;m.textContent='This browser still holds saved data. Starting empty will erase it. Click again to confirm, or load your backup file instead.';eb.textContent='Yes, erase it and start empty';return}
+    K.forEach(k=>localStorage.removeItem('smvm_'+k));done(null)});
   });
  }
+
  async function saveAll(snap){
   if(handle){await writeFile();return{msg:'All data saved to '+handle.name+' at '+new Date().toLocaleTimeString()}}
   if(SUP){const h=await showSaveFilePicker({suggestedName:'smv_master_db.json',types:[{description:'Data file',accept:{'application/json':['.json']}}]});handle=h;await idbSet(h);cache={v:snap.v||1,c:snap.c};await writeFile();return{db,msg:'Saved to '+h.name+'. From now on every change is saved to this file automatically.'}}
@@ -324,8 +315,11 @@ $('#udv').onclick=async()=>{const sheet=$('#udb').value.trim(),item=$('#udt').va
  ps.push(put('b',id,{sheet,style,item,size,note:'Uploaded from '+UP.name,_new:true}));
  UP.ops.forEach(o=>{ps.push(put('p',nid(),{ob:id,sl:o.sl,op:o.op,mc:o.mc,mct:o.mct,smv:o.base,freq:o.freq,feat:o.feat,_new:true}));const k=okey(o.op,o.mc,o.base,size);if(!have.has(k)){have.add(k);nl++;ps.push(put('p',nid(),{code:'OP-'+String(n++).padStart(4,'0'),ob:null,sl:null,op:o.op,mc:o.mc,mct:o.mct,smv:o.base,item,size,_new:true}))}});
  bulk=0;$('#ud').close();tab='b';fopts();render();await Promise.all(ps);msg('OB sheet created with '+UP.ops.length+' operations \u00b7 '+nl+' new in the operation database')};
-$('#sv2').onclick=async()=>{try{const d=new Date(),ds=new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10),snap={app:'smv-master',exported:d.toISOString(),v:Date.now(),c:{orders:ov.o,ops:ov.p,obs:ov.b,settings:ov.s,features:ov.f}},txt=JSON.stringify(snap),nmf='smv_backup_'+ds+'.json';
- const sf=window.claude.saveFile||((n,t)=>window.claude.use('downloads').then(x=>x.save({filename:n,data:t})).then(()=>n)),nm=await sf(nmf,txt);dirty=0;try{localStorage.setItem('smvm_last',d.toISOString())}catch(x){}render();msg('Backup saved: '+nm+' \u2013 keep it safe and load it next time')}catch(x){msg(x&&x.name==='AbortError'?'Backup cancelled \u2013 nothing was saved':'Could not create the backup: '+((x&&x.message)||x))}};
+$('#sv2').onclick=async()=>{const d=new Date(),ds=new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10),snap={app:'smv-master',exported:d.toISOString(),v:Date.now(),c:{orders:ov.o,ops:ov.p,obs:ov.b,settings:ov.s,features:ov.f}},txt=JSON.stringify(snap),nmf='smv_backup_'+ds+'.json';
+ const fin=n=>{dirty=0;try{localStorage.setItem('smvm_last',d.toISOString())}catch(x){}render();msg('Backup saved: '+n+' \u2013 keep it safe and load it next time')};
+ try{fin(await window.claude.saveFile(nmf,txt))}catch(x){const ab=x&&x.name==='AbortError';
+  const i=await ask('<b>'+(ab?'The folder window was closed, or the browser did not allow saving there.':'The browser could not save into that folder.')+'</b>'+(ab?'':'<div class="sub" style="margin-top:6px">'+e((x&&x.name)||'Error')+': '+e((x&&x.message)||x)+'</div>')+'<p style="margin:10px 0 0">Download the backup to your normal Downloads folder instead?</p>',['Download backup','Cancel']);
+  if(i===0){try{const dl=await window.claude.use('downloads');await dl.save({filename:nmf,data:txt});fin(nmf+' (in your Downloads folder)')}catch(y){msg('Could not create the backup: '+((y&&y.message)||y))}}else msg('Backup cancelled \u2013 nothing was saved')}};
 window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
 function schedAuto(){if(!adh)return;clearTimeout(adt);adt=setTimeout(()=>runAuto(),20000)}
 function abLabel(){const b=$('#ab');b.textContent=adh?'Auto-backup: ON \u00b7 '+adn:abPend?'Auto-backup: click to resume \u00b7 '+adn:'Auto-backup: off';b.style.background=adh?'#0f766e':abPend?'#d97706':'';b.style.color=adh||abPend?'#fff':''}
@@ -335,13 +329,13 @@ async function runAuto(force){if(!adh||(!dirty&&!force))return;try{
  const d=new Date(),ds=new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10),snap={app:'smv-master',exported:d.toISOString(),v:Date.now(),c:{orders:ov.o,ops:ov.p,obs:ov.b,settings:ov.s,features:ov.f}},txt=JSON.stringify(snap);let nm='smv_backup_'+ds+'.json';
  try{const old=JSON.parse(await (await (await adh.getFileHandle(nm)).getFile()).text());if(bcnt(old)>bcnt(snap))nm='smv_backup_'+ds+'_'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')+'.json'}catch(e){}
  dirty=0;const f=await adh.getFileHandle(nm,{create:true}),w=await f.createWritable();await w.write(txt);await w.close();
- try{localStorage.setItem('smvm_last',d.toISOString())}catch(x){}render();msg('Auto-backup saved: '+nm)}catch(x){dirty=1;msg('Auto-backup failed: '+((x&&x.message)||x))}}
+ try{localStorage.setItem('smvm_last',d.toISOString())}catch(x){}render();msg('Auto-backup saved: '+nm)}catch(x){dirty=1;if(force){adh=null;abLabel()}msg('Auto-backup failed: '+((x&&x.name)||'')+' '+((x&&x.message)||x))}}
 async function abInit(){if(!window.showDirectoryPicker){$('#ab').style.display='none';return}try{const g=window.claude&&window.claude.getDir?await window.claude.getDir():null;if(g){adn=g.name;if(await g.queryPermission({mode:'readwrite'})==='granted')adh=g;else abPend=g}}catch(x){}abLabel()}
 $('#ab').onclick=async()=>{try{
  if(adh){const i=await ask('Auto-backup is <b>ON</b>: your data is saved into the folder <b>'+e(adn)+'</b> about 20 seconds after every change.',['Change folder','Turn off','Close']);if(i===1){adh=null;abPend=null;adn='';await window.claude.setDir(null);abLabel()}if(i!==0)return}
  else if(abPend){if(await abPend.requestPermission({mode:'readwrite'})==='granted'){adh=abPend;abPend=null;abLabel();await runAuto(true);msg('Auto-backup resumed');return}}
  const g=await showDirectoryPicker({id:'smvautobackup',mode:'readwrite',startIn:'documents'});adh=g;abPend=null;adn=g.name;await window.claude.setDir(g);abLabel();await runAuto(true);msg('Auto-backup is ON. Backups go into the folder \u201c'+adn+'\u201d about 20 seconds after each change.')}
- catch(x){msg(x&&x.name==='AbortError'?'No folder chosen. Chrome does not allow the Documents, Downloads or Desktop folder itself: create a sub-folder (for example SMV Backups) and choose that.':'Auto-backup: '+((x&&x.message)||x))}};
+ catch(x){const ab=x&&x.name==='AbortError',i=await ask('<b>Auto-backup could not be turned on.</b><div class="sub" style="margin-top:6px;color:var(--tx)">'+(ab?'No folder was chosen, or the browser did not allow it. Chrome does not allow the Documents, Downloads or Desktop folder itself, so create a sub-folder (for example <b>SMV Backups</b>) and choose that. After choosing, click <b>Edit files</b> or <b>Save changes</b> in the browser message.':e((x&&x.name)||'Error')+': '+e((x&&x.message)||x))+'</div>',['Try again','Close']);if(i===0)$('#ab').onclick()}};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&adh&&dirty){clearTimeout(adt);runAuto()}});
 abInit();
 $('#ex').onclick=async()=>{try{if(!window.XLSX)throw 0;const o=rows('o').map(r=>({ID:r.id,Date:r.date,Buyer:r.buyer,Category:r.cat,Item:r.item,Size:r.size,Style:r.style,'Ref Type':r.rtype,Reference:r.ref,'Process Description':r.proc,Remarks:r.rem,'Order Qty':r.qty,SMV:r.smv,'No. of MC':r.mc,Helper:r.hp,'Total MP':r.mp,'Productivity (Pcs)':r.prod,'Exp Effi':r.eff,'Line Group':r.grp,'Allocate Line':r.lines,'Days Run':r.days,'Sewing Lead Time':r.lead,'OB Match':r.obm,'OB Sheet':r.obsheet,'Workload (SAH)':r.sah}));

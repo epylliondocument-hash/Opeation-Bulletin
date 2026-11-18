@@ -102,7 +102,7 @@ function rows(t){if(t==='r')return binRows();if(t==='f')return featRows();const 
  if(0)for(const r of out){r.tgt=r.smv>0?60/r.smv:null}
  return out}
 function obrows(){const a={};for(const b of rows('b'))a[b.id]={...b,nops:0,tot:0,man:0,lnk:0};
- for(const r of rows('p')){const x=a[r.ob];if(!x||!(r.smv>0))continue;x.nops++;x.tot+=r.su;if(String(r.mc).toUpperCase()==='M')x.man+=r.su}
+ for(const r of rows('p')){const x=a[r.ob];if(!x||!(r.smv>0))continue;x.nops++;x.tot+=r.su;if(['M','MSTD','MSIT'].includes(String(r.mc).trim().toUpperCase()))x.man+=r.su}
  const cnt={},oq={};for(const r of rows('o'))if(r.ob){cnt[r.ob]=(cnt[r.ob]||0)+1;oq[r.ob]=(oq[r.ob]||0)+(r.qty||0)}
  return Object.values(a).map(x=>({...x,mach:x.tot-x.man,lnk:cnt[x.id]||0,qty:oq[x.id]||0}))}
 const CFG={f:{c:[['name','Feature'],['n','Operations','n0'],['tot','Total SMV','f4'],['list','Operations included']],f:'name',l:'All features'},r:{c:[['type','Type'],['name','Name'],['when','Deleted on'],['left','Days left','n0']],f:'type',l:'All types'},o:{c:[['img','Image'],['date','Date'],['buyer','Buyer Name'],['cat','Cat.'],['item','Item'],['size','Size'],['style','Style'],['rtype','Ref type'],['ref','Reference'],['qty','Qty','n0'],['smv','SMV','f4'],['mp','MP','n0'],['prod','Prod.','n0'],['eff','Eff.','pc'],['lines','Lines','n0'],['lead','Lead days','n0'],['days','Days run','f2'],['obm','OB match']],f:'item',l:'All items'},
@@ -204,12 +204,12 @@ async function xlOrder(id){try{const r=rows('o').find(x=>x.id===id);if(!window.E
  if(r.img){const im=await new Promise(res=>{const i=new Image;i.onload=()=>res(i);i.src=r.img}),k=Math.min(170/im.width,160/im.height);ws.addImage(wb.addImage({base64:r.img,extension:'jpeg'}),{tl:{col:6.05,row:1.05},ext:{width:im.width*k,height:im.height*k}})}
  const buf=await wb.xlsx.writeBuffer(),ab=buf instanceof ArrayBuffer?buf:buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength),dl=await window.claude.use('downloads');if(!dl)throw 1;
  await dl.save({filename:`Order_${String(r.style||r.id).replace(/[^\w.-]+/g,'_')}.xlsx`,data:ab});msg('Excel ready')}catch(x){msg('Excel download is not available in this view')}}
-async function xlOB(id){try{const b=obrows().find(x=>x.id===id);if(!b||!window.ExcelJS)throw 0;const ps=rows('p').filter(x=>x.ob===id).sort((a,c)=>(a.sl??1e9)-(c.sl??1e9)),n=Math.max(9,8+ps.length),tot=ps.reduce((s,r)=>s+r.su,0),man=ps.reduce((s,r)=>s+(String(r.mc).toUpperCase()==='M'?r.su:0),0);
+async function xlOB(id){try{const b=obrows().find(x=>x.id===id);if(!b||!window.ExcelJS)throw 0;const ps=rows('p').filter(x=>x.ob===id).sort((a,c)=>(a.sl??1e9)-(c.sl??1e9)),n=Math.max(9,8+ps.length),tot=ps.reduce((s,r)=>s+r.su,0),man=ps.reduce((s,r)=>s+(['M','MSTD','MSIT'].includes(String(r.mc).trim().toUpperCase())?r.su:0),0);
  const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('OB'),ft={name:'Calibri',size:11},bd={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}},fl=a=>({type:'pattern',pattern:'solid',fgColor:{argb:a}}),ce={horizontal:'center',vertical:'middle',wrapText:true};
  ws.columns=[7,58,10,10,13,16,3].map(width=>({width}));
  [['Buyer',b.sheet],['Style',b.style],['Item',b.item],['SMV',null],['Order Qty',b.qty],['Size',b.size]].forEach(([l,v],i)=>{for(let c=1;c<=3;c++){const x=ws.getCell(i+1,c);x.fill=fl('FFE2EFDA');x.font=ft}ws.getCell(i+1,1).value=l;ws.getCell(i+1,2).value=v;ws.getCell(i+1,2).alignment={horizontal:'left'}});
  ws.getCell('B4').value={formula:'ROUND(D7,2)',result:Math.round(tot*100)/100};ws.getCell('B4').fill=fl('FFFFFF00');
- ws.getCell('E2').value='M/C';ws.getCell('F2').value={formula:'D7-F3',result:tot-man};ws.getCell('E3').value='MAMUAL';ws.getCell('F3').value={formula:`SUMIF(C9:C${n},"M",D9:D${n})`,result:man};
+ ws.getCell('E2').value='M/C';ws.getCell('F2').value={formula:'D7-F3',result:tot-man};ws.getCell('E3').value='Manual';ws.getCell('F3').value={formula:`SUMIF(C9:C${n},"M",D9:D${n})+SUMIF(C9:C${n},"MSTD",D9:D${n})+SUMIF(C9:C${n},"MSIT",D9:D${n})`,result:man};
  ['E2','F2','E3','F3'].forEach(a=>{ws.getCell(a).border=bd;ws.getCell(a).font=ft});ws.getCell('F2').numFmt='0.0000';ws.getCell('F3').numFmt='0.0000';
  ws.getCell('D7').value={formula:`SUBTOTAL(9,D9:D${n})`,result:tot};ws.getCell('D7').numFmt='0.0000';ws.getCell('D7').font=ft;
  ['SL','Operation Name','M/C','SMV','100% Target','Remark'].forEach((t,i)=>{const x=ws.getCell(8,i+1);x.value=t;x.font={name:'Calibri',size:11,bold:true};x.alignment=ce;x.border=bd});
